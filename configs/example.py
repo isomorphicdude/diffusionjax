@@ -1,5 +1,5 @@
 """Config for `examples/example.py`."""
-from configs.default_cs_configs import get_default_configs
+from configs.default_config import get_default_configs
 
 
 def get_config():
