@@ -24,11 +24,12 @@ def get_config():
 
     # eval
     eval = config.eval
-    eval.batch_size = 2048
+    eval.batch_size = 1000
 
     # sampling
     sampling = config.sampling
     sampling.denoise = True
+    sampling.noise_std = 0.01
 
     # data
     data = config.data

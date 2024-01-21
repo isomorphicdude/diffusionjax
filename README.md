@@ -2,9 +2,8 @@ diffusionjax
 ============
 [![CI](https://github.com/bb515/diffusionjax/actions/workflows/CI.yml/badge.svg)](https://github.com/bb515/diffusionjax/actions/workflows/CI.yml)
 [![Coverage Status](https://coveralls.io/repos/github/bb515/diffusionjax/badge.svg?branch=master)](https://coveralls.io/github/bb515/diffusionjax?branch=master)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-diffusionjax is a simple, accessible introduction to diffusion models, also known as score-based generative models (SGMs). It is implemented in Python via the autodiff framework, [JAX](https://github.com/google/jax). In particular, diffusionjax uses the [Flax](https://github.com/google/flax) library for the neural network approximator of the score.
+diffusionjax is a simple, accessible introduction to diffusion models, also known as score-based generative models (SGMs). It is implemented in Python via the autodiff framework, [JAX](https://github.com/google/jax). In particular, diffusionjax uses the [Flax](https://github.com/google/flax) library for the neural network approximator of the score. diffusionjax focusses on the continuous time formulation during training.
 
 The development of diffusionjax has been supported by The Alan Turing Institute through the Theory and Methods Challenge Fortnights event "Accelerating generative models and nonconvex optimisation", which took place on 6-10 June 2022 and 5-9 Sep 2022 at The Alan Turing Institute headquarters.
 
@@ -13,7 +12,6 @@ The development of diffusionjax has been supported by The Alan Turing Institute 
 Thank you to [nPlan](https://www.nplan.io/), who are supporting this project.
 
 Contents:
-
 - [Installation](#installation)
 - [Examples](#examples)
     - [Introduction to diffusion models](#introduction-to-diffusion-models)
@@ -25,6 +23,7 @@ Contents:
 The package requires Python 3.8+. First, it is recommended to [create a new python virtual environment](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands). 
 diffusionjax depends on JAX. Because the JAX installation is different depending on your CUDA version, diffusionjax does not list JAX as a dependency in `setup.py`.
 First, [follow these instructions](https://github.com/google/jax#installation) to install JAX with the relevant accelerator support.
+To run the examples, you may optionally need to install [optax](https://optax.readthedocs.io/en/latest/), [orbax-checkpoint](https://orbax.readthedocs.io/en/latest/), [torch[cpu]](https://pytorch.org/get-started/locally/) and [mlkernels](https://github.com/wesselb/mlkernels#installation), which the package depends on only through the examples given.
 Then, `pip install diffusionjax` or for developers,
 - Clone the repository `git clone git@github.com:bb515/diffusionjax.git`
 - Install using pip `pip install -e .` from the root directory of the repository (see the `setup.py` for the requirements that this command installs).
@@ -50,7 +49,7 @@ The example is based off the [Jupyter notebook](https://jakiw.com/sgm_intro) by 
 >>> num_samples = 8
 >>> samples = sample_circle(num_samples)
 >>> N = samples.shape[1]
->>> plot_samples(samples=samples, index=(0, 1), fname="samples", lims=((-3, 3), (-3, 3)))
+>>> plot_scatter(samples=samples, index=(0, 1), fname="samples", lims=((-3, 3), (-3, 3)))
 >>> rng = random.PRNGKey(2023)
 ```
 ![Prediction](readme_samples.png)
@@ -137,22 +136,27 @@ The example is based off the [Jupyter notebook](https://jakiw.com/sgm_intro) by 
 ```
 ![Prediction](readme_heatmap_trained_score.png)
 ```python
->>> inpainter = get_inpainter(solver, stack_samples=False)
->>> data = jnp.array([-0.5, 0.0])
->>> mask = jnp.array([1, 0])
->>> data = jnp.tile(data, (64, 1))
->>> mask = jnp.tile(mask, (64, 1))
->>> rng, *sample_rng = random.split(rng, 2)
->>> q_samples = inpainter(jnp.array(sample_rng), data, mask)
->>> q_samples = q_samples.reshape(64, N)
->>> plot_heatmap(samples=q_samples, area_min=-3, area_max=3, fname="heatmap inpainted")
+>>>  # Condition on one of the coordinates
+>>>  y = jnp.array([-0.5, 0.0])
+>>>  mask = jnp.array([1., 0.])
+>>>  # Get inpainter
+>>>  sampler = get_sampler(sampling_shape,
+                           solver,
+                           Inpainted(sde.reverse(trained_score), mask, y),
+                           inverse_scaler=inverse_scaler,
+                           stack_samples=False,
+                           denoise=True)
+>>>  q_samples, _ = sampler(sample_rng)
+>>>  q_samples = q_samples.reshape(sampling_shape)
+>>>  plot_heatmap(samples=q_samples, area_bounds=[-3., 3.], fname="heatmap inpainted")
 ```
 ![Prediction](readme_heatmap_inpainted.png)
 
 ## Does haves
 - Training scores on (possibly, image) data and sampling from the generative model. Also inverse problems, such as inpainting.
-- Not many lines of code.
 - jit multiple training steps together to improve training speed at the cost of more memory usage. This can be set via `config.training.n_jitted_steps`.
+- Not many lines of code.
+- Bayesian inversion (inverse problems) with linear observation maps.
 - Easy to use, extendable. Get started with the example, provided.
 
 ## Doesn't haves
@@ -161,8 +165,5 @@ The example is based off the [Jupyter notebook](https://jakiw.com/sgm_intro) by 
 - Augmented with critically-damped Langevin diffusion.
 
 ## References
-Algorithms in this package were ported from pre-existing code. In particular, the code was ported from the following papers and repositories:
-
-The [official implementation](https://github.com/yang-song/score_sde) for the paper [Score-Based Generative Modeling through Stochastic Differential Equations](https://openreview.net/forum?id=PxTIG12RRHS) by [Yang Song](https://yang-song.github.io), [Jascha Sohl-Dickstein](http://www.sohldickstein.com/), [Diederik P. Kingma](http://dpkingma.com/), [Abhishek Kumar](http://users.umiacs.umd.edu/~abhishek/), [Stefano Ermon](https://cs.stanford.edu/~ermon/), and [Ben Poole](https://cs.stanford.edu/~poole/)
-
+This is the implementation for the paper [Tweedie Moment Projected Diffusions for Inverse Problems](https://arxiv.org/pdf/2310.06721.pdf) by Benjamin Boys, Mark Girolami, Jakiw Pidstrigach, Sebastian Reich, Alan Mosca and O. Deniz Akyildiz.
 
